@@ -4,6 +4,14 @@ name: CodeQL
 # job (REPO-BASELINE §1). The schedule matters as much as the PR trigger: a
 # vulnerability class published next month applies to code that stopped changing
 # last month.
+#
+# REPO-BASELINE §1 pairs SAST with a dependency audit, and there is deliberately
+# no dependency-review job here: it requires the repository's Dependency graph
+# feature, which is not enabled, and a job that fails on every pull request for a
+# reason no diff can fix trains people to ignore CI. Recorded as a dated row in
+# the deviation register (docs/architecture/00-ARCHITECTURE.md §3) rather than
+# left as an unexplained absence, and Dependabot still raises update pull
+# requests in the meantime.
 on:
   pull_request:
     branches: [main]
@@ -43,17 +51,3 @@ jobs:
       - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
-
-  dependency-review:
-    name: Dependency review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-          comment-summary-in-pr: on-failure
