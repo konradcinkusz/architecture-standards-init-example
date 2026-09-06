@@ -1,0 +1,20 @@
+flowchart TB
+    TAG(["push tag v*"])
+
+    TEST["test<br/>build · tests · kernel ceiling"]
+    DETECT["detect-changes<br/>diff vs the PREVIOUS TAG<br/>+ a missing Fly app is always selected"]
+    BUILD["build (matrix, fail-fast: false)<br/>one image per changed service<br/>pushed once to GHCR"]
+
+    PG["deploy-postgres<br/>gated separately: a redeploy restarts it"]
+    APIJOB["deploy-api<br/>mirror GHCR → registry.fly.io<br/>same digest, no rebuild"]
+    WEBJOB["deploy-web"]
+    VERIFY["verify<br/>persistence not degraded<br/>schema migrated<br/>config read at request time"]
+
+    TAG --> TEST --> BUILD
+    TAG --> DETECT --> BUILD
+    BUILD --> PG --> APIJOB --> WEBJOB --> VERIFY
+
+    NOTE["every gate accepts<br/>success OR skipped<br/>from upstream"]
+    NOTE -.-> PG
+    NOTE -.-> APIJOB
+    NOTE -.-> WEBJOB

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "//": [
+    "DOTNET_ENVIRONMENT=Development below is load-bearing, not decoration. The",
+    "host adds `dotnet user-secrets` to configuration ONLY in Development, and",
+    "every AppHost parameter marked `secret: true` is read from there (P5).",
+    "Without this file, `dotnet run` starts in Production, postgres-password",
+    "resolves to ValueMissing, and every resource waiting on it sits in Waiting",
+    "forever while the AppHost reports nothing worse than a dashboard URL.",
+    "",
+    "This comment lives at the top level on purpose: values inside",
+    "environmentVariables are typed as strings, and an array there makes the",
+    "whole profile unreadable — `dotnet run` then prints one line about it and",
+    "carries on with no profile at all, which looks exactly like the bug above."
+  ],
+  "profiles": {
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:17180;http://localhost:15180",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development",
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_DASHBOARD_OTLP_ENDPOINT_URL": "https://localhost:17181",
+        "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:17182"
+      }
+    }
+  }
+}

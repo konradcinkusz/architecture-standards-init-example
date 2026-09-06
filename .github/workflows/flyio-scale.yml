@@ -1,0 +1,74 @@
+name: Scale Fly.io apps
+
+# Manual only. Normalizes machine counts, winds the estate up before a demo, or
+# winds it down to nothing between them (FLY-IO §12).
+#
+# Stateful apps are excluded BY NAME and not by a flag somebody has to remember:
+# `flyctl scale count 2` on an app with a volume creates a second machine with a
+# second EMPTY volume, not a replica.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        required: true
+        type: choice
+        options:
+          - normalize        # api -> 1 machine, web -> 1 machine
+          - scale-out        # api -> 2 machines (the request path only)
+          - wind-down        # api and web -> 0 machines; the database keeps running
+        default: normalize
+
+permissions:
+  contents: read
+
+env:
+  SLUG: architecture-standards-init-example
+  ENVIRONMENT: dev
+  FLY_REGION: fra
+
+jobs:
+  scale:
+    name: ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Apply
+        run: |
+          set -euo pipefail
+          API="${SLUG}-api-${ENVIRONMENT}"
+          WEB="${SLUG}-web-${ENVIRONMENT}"
+
+          # Named here so the exclusion is visible rather than implied.
+          echo "Excluded (stateful, single-volume): ${SLUG}-postgres"
+
+          case "${{ inputs.action }}" in
+            normalize)
+              flyctl scale count 1 --app "$API" --region "$FLY_REGION" --yes
+              flyctl scale count 1 --app "$WEB" --region "$FLY_REGION" --yes
+              ;;
+            scale-out)
+              # Only the request path. The frontend gains nothing from a second
+              # machine while it is scale-to-zero anyway.
+              flyctl scale count 2 --app "$API" --region "$FLY_REGION" --yes
+              ;;
+            wind-down)
+              # Note this is NOT the same as min_machines_running = 0: that lets
+              # the proxy start a stopped machine, whereas zero machines leaves
+              # nothing to start. Run `normalize` to bring the estate back.
+              flyctl scale count 0 --app "$API" --yes
+              flyctl scale count 0 --app "$WEB" --yes
+              ;;
+          esac
+
+      - name: Report
+        run: |
+          for app in "${SLUG}-api-${ENVIRONMENT}" "${SLUG}-web-${ENVIRONMENT}" "${SLUG}-postgres"; do
+            echo "### $app" >> "$GITHUB_STEP_SUMMARY"
+            flyctl status --app "$app" 2>&1 | head -20 >> "$GITHUB_STEP_SUMMARY" || true
+          done

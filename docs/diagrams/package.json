@@ -1,0 +1,12 @@
+{
+  "name": "diagrams",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Renders docs/diagrams/*.mmd to vector PDFs for the LaTeX build. One diagram per file; the markdown that renders on GitHub carries the same source inline, and scripts/check-diagrams.mjs keeps the two byte-identical.",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "11.17.0"
+  }
+}

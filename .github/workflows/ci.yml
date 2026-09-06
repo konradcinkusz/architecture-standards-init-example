@@ -1,0 +1,237 @@
+name: CI
+
+# Every gate this repository claims runs here, on every pull request. A check
+# that runs only when somebody remembers to run it is not a check
+# (REPO-BASELINE §1).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  backend:
+    name: Build and test (.NET)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore ArchitectureStandardsInitExample.slnx
+
+      # Warnings are errors (Directory.Build.props), so this step is the style
+      # and analyzer gate as well as the compile gate.
+      - name: Build
+        run: dotnet build ArchitectureStandardsInitExample.slnx --configuration Release --no-restore
+
+      # NOT `dotnet test --nologo`: in the .NET 10 SDK's MTP mode that flag is
+      # forwarded to the test application, which rejects it with exit code 5 and
+      # the misleading summary "Zero tests ran".
+      - name: Test
+        run: dotnet test --configuration Release --no-build
+
+  kernel-size:
+    name: Kernel ceiling (P2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The mechanical half of P2's ceiling; the other half is
+      # KernelBoundaryTests, which asserts the kernel holds no entity type,
+      # references no other project, and exports nothing to inherit from.
+      #
+      # Stating the limit in prose has already failed twice in this estate: one
+      # shared library ended up holding advert entities and a pricing table,
+      # another grew a 607-line file of seeded domain prompts. Both were
+      # "temporary".
+      - name: The shared kernel must stay under 800 lines
+        run: |
+          set -euo pipefail
+          LIMIT=800
+          ACTUAL=$(find src/ArchitectureStandardsInitExample.ServiceDefaults -name '*.cs' -print0 \
+                     | xargs -0 cat | wc -l)
+          echo "Shared kernel: ${ACTUAL} lines (limit ${LIMIT})."
+          if [ "$ACTUAL" -gt "$LIMIT" ]; then
+            echo "::error::The shared kernel is ${ACTUAL} lines, over the ${LIMIT}-line ceiling (P2)."
+            echo "::error::Something that is not cross-cutting plumbing has been added to it."
+            echo "::error::Business data belongs to the service that owns it, or to the Contracts project."
+            exit 1
+          fi
+
+  frontend:
+    name: Build and lint (Next.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: web
+        run: pnpm --filter web typecheck
+
+      - name: Lint
+        working-directory: web
+        run: pnpm --filter web lint
+
+      - name: Build
+        working-directory: web
+        run: pnpm --filter web build
+
+  e2e:
+    name: E2E acceptance (smoke)
+    runs-on: ubuntu-latest
+    # The suite lands wired to CI, not as a follow-up: a suite no job runs
+    # provides exactly the protection of a suite that does not exist, with the
+    # added risk of being cited as coverage (E2E-ACCEPTANCE-TESTING §6).
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Build the frontend
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter web build
+
+      - name: Build the API
+        run: dotnet build src/ArchitectureStandardsInitExample.Api --configuration Debug
+
+      - name: Install Playwright
+        working-directory: tests/e2e
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+
+      # Playwright's webServer starts both processes with NO configuration at
+      # all. That it works is P8's promise made into a gate: if somebody
+      # registers an optional integration unconditionally, this job goes red.
+      - name: Run the suite
+        working-directory: tests/e2e
+        run: pnpm exec playwright test
+        env:
+          CI: "true"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: tests/e2e/playwright-report/
+          retention-days: 7
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # A diagram has one source. GitHub renders only inline mermaid and a PDF
+      # renders only a file, so the same picture has to appear twice — and two
+      # copies of anything drift. This is the check that keeps them identical,
+      # rather than a convention asking people to remember.
+      - name: Diagrams have one source
+        run: node scripts/check-diagrams.mjs
+
+      # A stale document is a review finding, not a cosmetic issue (P14). A dead
+      # relative link is the cheapest kind to catch mechanically.
+      - name: Every relative link in the docs resolves
+        run: |
+          set -euo pipefail
+          # A file, not a variable: the inner loop runs in a subshell behind a
+          # pipe, so an incremented counter would not survive back to this shell.
+          BROKEN="$(mktemp)"
+          while IFS= read -r file; do
+            grep -oE '\]\([^)#][^)]*\)' "$file" 2>/dev/null \
+              | sed -E 's/^\]\((.*)\)$/\1/' \
+              | while IFS= read -r link; do
+                  case "$link" in
+                    http*|mailto:*|'#'*) continue ;;
+                  esac
+                  target="${link%%#*}"
+                  [ -z "$target" ] && continue
+                  resolved="$(cd "$(dirname "$file")" && realpath -m "$target")"
+                  if [ ! -e "$resolved" ]; then
+                    echo "::error file=${file}::broken relative link: ${link}"
+                    echo "${file} -> ${link}" >> "$BROKEN"
+                  fi
+                done
+          done < <(find . -name '*.md' \
+                     -not -path './node_modules/*' \
+                     -not -path './web/node_modules/*' \
+                     -not -path './tests/e2e/node_modules/*' \
+                     -not -path './docs/diagrams/node_modules/*')
+
+          if [ -s "$BROKEN" ]; then
+            echo "::error::$(wc -l < "$BROKEN") broken relative link(s) in the documentation."
+            exit 1
+          fi
+          echo "All relative links resolve."
+
+  images:
+    name: Container images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+
+      # Built but not pushed: a pull request proves the images build, and only a
+      # tag publishes one (P12 — a deploy is an act, and the tag is its record).
+      - name: API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/ArchitectureStandardsInitExample.Api/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: web
+          file: web/app/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

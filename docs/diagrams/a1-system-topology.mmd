@@ -1,0 +1,22 @@
+flowchart TB
+    subgraph dev["Development — one command"]
+        AH["AppHost<br/>postgres · api · web"]
+    end
+
+    subgraph run["Runtime — one container per service"]
+        WEB["web<br/>Next.js standalone :8080"]
+        API["api<br/>ASP.NET Core :8080"]
+    end
+
+    subgraph shared["Shared kernel — plumbing only"]
+        SD["ServiceDefaults<br/>OTel · health · discovery<br/>resilience · JWT · CORS<br/>OpenAPI · DB provider"]
+        CT["Contracts<br/>ApiError · PagedResponse · BootRecordResponse"]
+    end
+
+    DB[("apidb")]
+
+    AH -.->|"dev only"| run
+    API --> SD
+    API --> CT
+    API --> DB
+    WEB -->|"server-side only<br/>/api/proxy"| API

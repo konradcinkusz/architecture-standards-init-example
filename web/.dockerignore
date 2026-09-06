@@ -1,0 +1,14 @@
+# The frontend image's build context is `web/` — the workspace root, because the
+# install needs pnpm-workspace.yaml and the lockfile. Exclusion-based, same
+# reasoning as the repository root's (REPO-BASELINE §1).
+*
+
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!.npmrc
+!app/
+
+app/node_modules/
+app/.next/
+app/next-env.d.ts

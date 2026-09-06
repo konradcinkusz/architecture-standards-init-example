@@ -1,0 +1,66 @@
+name: Build the project overview PDF
+
+# `workflow_dispatch` and nothing else, deliberately.
+#
+# A workflow's trigger says what kind of document it builds before a reader ever
+# opens the .tex: a workflow only a human can start is a document that exists
+# when someone asks for it; a workflow a tag starts is a document that ships with
+# a release, and the release is incomplete without it. The overview has no
+# release cadence of its own, so it gets the manual shape and a run artifact
+# rather than a release asset (RESEARCH-DOCUMENTATION, "Building the PDF in CI").
+#
+# The overview is NOT a research paper under that standard, and its .tex header
+# says so in its own words.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: docs/papers/overview.tex
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Diagrams are rendered BEFORE LaTeX runs: a build that reaches an
+      # \includegraphics whose file is not there fails on that line, with an
+      # error that names the missing PDF and not the missing step.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Render the diagrams
+        working-directory: docs/diagrams
+        run: |
+          set -euo pipefail
+          # From the lockfile, so the PDF is built with the renderer version the
+          # repository records rather than whatever the registry's floating
+          # latest happens to be that day. render.mjs invokes the local binary
+          # for the reason documented in its header.
+          pnpm install --frozen-lockfile
+          pnpm render
+          ls -la rendered/
+
+      - uses: xu-cheng/latex-action@v4
+        with:
+          root_file: docs/papers/architecture-standards-init-example-overview.tex
+          working_directory: .
+          latexmk_use_xelatex: true
+
+      - name: Name the artifact after the project rather than the file
+        run: |
+          mv docs/papers/architecture-standards-init-example-overview.pdf \
+             architecture-standards-init-example-overview.pdf
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: overview-pdf
+          path: architecture-standards-init-example-overview.pdf
+          retention-days: 30

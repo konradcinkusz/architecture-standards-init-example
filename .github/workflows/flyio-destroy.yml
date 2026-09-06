@@ -1,0 +1,97 @@
+name: Destroy Fly.io apps
+
+# Behind a typed confirmation, because a workflow that destroys data on a single
+# click eventually gets a single click (FLY-IO §12).
+#
+# The data volume is KEPT by default. Destroying it is a second, separate opt-in,
+# and it is the only irreversible thing here — everything else comes back from
+# the next tag, because a missing app is always selected by change detection.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type the environment name exactly: dev'
+        required: true
+        type: string
+      destroy_volume:
+        description: 'Also destroy the database volume. THIS DELETES THE DATA PERMANENTLY.'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  SLUG: architecture-standards-init-example
+  ENVIRONMENT: dev
+
+jobs:
+  destroy:
+    name: Destroy
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - name: Check the typed confirmation
+        run: |
+          if [ "${{ inputs.confirm }}" != "${ENVIRONMENT}" ]; then
+            echo "::error::Confirmation did not match. Type '${ENVIRONMENT}' exactly to proceed."
+            exit 1
+          fi
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Destroy in reverse dependency order
+        run: |
+          set -euo pipefail
+
+          # Reverse of the deploy order (postgres -> api -> web), so nothing is
+          # left serving requests against an app that has already gone.
+          #
+          # Historical names belong in this list too, after a rename: without
+          # them the old resources outlive every cleanup and bill forever
+          # (REPO-BASELINE §4). There have been no renames yet.
+          for app in \
+            "${SLUG}-web-${ENVIRONMENT}" \
+            "${SLUG}-api-${ENVIRONMENT}" \
+            "${SLUG}-postgres"
+          do
+            if flyctl apps list --json | jq -e --arg a "$app" '.[] | select((.Name // .name) == $a)' >/dev/null; then
+              echo "Destroying $app"
+              flyctl apps destroy "$app" --yes
+            else
+              # A skip, not an abort: a partially-destroyed estate must be
+              # finishable by re-running this.
+              echo "$app does not exist; skipping."
+            fi
+          done
+
+      - name: Volumes
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.destroy_volume }}" != "true" ]; then
+            # Single-quoted deliberately: backticks inside a double-quoted shell
+            # string are command substitution, and this sentence names a
+            # destructive command.
+            echo 'Volume kept. Destroying the app releases it; an orphaned volume may remain and still bills.'
+            echo 'Re-run with destroy_volume = true to remove it, or delete it from the Fly dashboard.'
+            exit 0
+          fi
+          echo "destroy_volume was set; any volume belonging to the destroyed postgres app has gone with it."
+
+      - name: What it takes to bring this back
+        run: |
+          {
+            echo "### Destroyed"
+            echo ""
+            echo "Push a tag to rebuild the estate from cold. Change detection always"
+            echo "selects a service whose Fly app is missing, so a single tag recreates"
+            echo "every app and volume with no manual \`fly launch\`."
+            echo ""
+            echo '```bash'
+            echo "git tag v0.1.1 && git push origin v0.1.1"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

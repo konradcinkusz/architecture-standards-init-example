@@ -1,0 +1,60 @@
+# Secret scanning runs as a pre-commit hook AND as a CI job (P5, REPO-BASELINE §2).
+# Both, deliberately: the hook catches the mistake before it becomes history, the
+# job catches contributors who never installed the hook.
+title = "architecture-standards-init-example"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "postgres-connection-string-with-password"
+description = "PostgreSQL connection string carrying an inline password"
+# No lookahead: gitleaks compiles with Go's RE2, which has none, and an invalid
+# pattern makes the scanner PANIC rather than fail a file — so the job dies before
+# it scans anything and the failure looks like a broken runner. Placeholders are
+# excluded by the [allowlist] below instead.
+regex = '''(?i)(host|server)\s*=\s*[^\s;]+\s*;.{0,200}?password\s*=\s*[^\s;"']{4,}'''
+tags = ["database", "connection-string"]
+
+[[rules]]
+id = "private-key-pem-inline"
+description = "A PEM private key pasted into a tracked file"
+regex = '''-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'''
+tags = ["key", "pem"]
+
+[allowlist]
+description = "Documentation and templates that must show the SHAPE of a secret without carrying one"
+paths = [
+  '''secrets\.env\.example''',
+  '''flyio/SECRETS\.md''',
+  '''scripts/README\.md''',
+  '''docs/.*\.md''',
+  '''\.gitleaks\.toml''',
+  '''pnpm-lock\.yaml''',
+
+  # Build output. The CI scan runs in git mode and never sees these, but a
+  # developer running scripts/scan-secrets.sh over a working tree that has been
+  # built would otherwise get nine findings in generated Next.js manifests and
+  # learn to ignore the tool.
+  '''\.next/''',
+  '''node_modules/''',
+  '''(^|/)(bin|obj)/''',
+  '''docs/diagrams/rendered/''',
+]
+# Placeholders that are deliberately not secrets. Anything matching these is a
+# shape, not a value — if one of these strings ever appears as a real credential,
+# that credential was already worthless.
+#
+# regexTarget = "line" is load-bearing. The default target is the extracted
+# secret, and a connection string assembled in a workflow —
+#   Password=${POSTGRES_PASSWORD}
+# — has the placeholder OUTSIDE what the rule captures, so the default target
+# never sees it and the line is reported as a leak. Testing the whole line is
+# what distinguishes a variable reference from a pasted value.
+regexTarget = "line"
+regexes = [
+  '''(?i)(changeme|placeholder|your-[a-z-]+-here|xxxxx+)''',
+  '''\$\{?[A-Za-z_][A-Za-z0-9_]*\}?''',        # ${VAR} / $VAR — a reference, not a value
+  '''\$\{\{\s*secrets\.[A-Za-z0-9_]+\s*\}\}''', # GitHub Actions secret expression
+  '''<[a-z][a-z0-9-]*>''',                      # <placeholder> in prose
+]

@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    P1 — the composition root, and it exists for development. One command brings
+    the whole system up. This project is not the production topology: production
+    is described by flyio/*.fly.toml and the deploy workflow, and treating the
+    AppHost as a second runtime is what produces drift between the two.
+  -->
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.5.3" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>architecture-standards-init-example-apphost</UserSecretsId>
+
+    <!--
+      ASPIRE010 asks us to opt into the Aspire CLI bundle. We do not: the AppHost
+      is run with `dotnet run` and the deploy is described by flyio/*.fly.toml and
+      the tag-driven workflow, not by `aspire publish` (P1 — the AppHost is not
+      the production topology). Opting in would add a build-time download to
+      every CI run to enable features this repository does not use.
+    -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+
+    <!--
+      ASPIREJAVASCRIPT001 — AddNextJsApp is marked evaluation-only in Aspire
+      13.5.3. Accepted here and nowhere else: this project is development-only
+      (P1), so an API that changes shape costs one edit to one file. The deployed
+      frontend is a container described by flyio/web.fly.toml, which does not go
+      through this API at all. Recorded as ADR-0006.
+    -->
+    <NoWarn>$(NoWarn);ASPIREJAVASCRIPT001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <PackageReference Include="Aspire.Hosting.JavaScript" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../ArchitectureStandardsInitExample.Api/ArchitectureStandardsInitExample.Api.csproj" />
+  </ItemGroup>
+
+</Project>

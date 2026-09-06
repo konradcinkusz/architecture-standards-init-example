@@ -55,3 +55,49 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# ---------------------------------------------------------------------------
+# Added by the generic-template initializer (docs/scaffold/INIT-GENERIC-TEMPLATE.md)
+# ---------------------------------------------------------------------------
+
+# Node / pnpm / Next.js
+node_modules/
+.next/
+out/
+.pnpm-store/
+*.tsbuildinfo
+next-env.d.ts
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# Local secrets and environment overlays. `secrets.env.example` is committed;
+# anything that actually holds a value is not.
+.env
+.env.*
+!.env.example
+secrets.env
+*.pem
+!docs/**/*.pem
+
+# LaTeX build output. Only the .tex is committed (RESEARCH-DOCUMENTATION,
+# "Diagrams in a PDF" / "Building the PDF in CI") — a checked-in PDF disagrees
+# with its source the first time the source changes.
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.synctex.gz
+docs/papers/*.pdf
+docs/diagrams/rendered/
+
+# Aspire / local tooling
+.aspire/
+# Written by the Aspire CLI when the CLI bundle is enabled. It records a path on
+# the machine that ran it, so it is a local artifact rather than a repo setting.
+aspire.config.json

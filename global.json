@@ -1,0 +1,13 @@
+{
+  "sdk": {
+    "version": "10.0.300",
+    "rollForward": "latestFeature"
+  },
+  "msbuild-sdks": {
+    "Aspire.AppHost.Sdk": "13.5.3"
+  },
+  "test": {
+    "//": "MTP mode of `dotnet test`, introduced in the .NET 10 SDK. Declared here so the command behaves identically on a laptop and in CI rather than depending on the machine's SDK feature band.",
+    "runner": "Microsoft.Testing.Platform"
+  }
+}

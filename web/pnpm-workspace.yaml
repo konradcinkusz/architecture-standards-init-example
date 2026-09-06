@@ -1,0 +1,12 @@
+# One workspace, one package manager, all apps members (FRONTEND-BFF §7).
+#
+# There is one app today. The workspace exists anyway because it is cheap now and
+# is what makes the second app a move rather than a rewrite: the worked example
+# in the guide is four apps, two in a workspace and two on standalone npm, each
+# carrying a hand-copied BFF route — three CI setups and four slowly diverging
+# copies of security-relevant code.
+#
+# The `@architecture-standards-init-example/web-kit` package is created when the
+# second app arrives and the BFF routes stop being one app's business.
+packages:
+  - "app"
