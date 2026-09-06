@@ -9,7 +9,10 @@
 
 *
 
-# The solution's build inputs
+# The solution's build inputs. `.editorconfig` is one of them, not a nicety: it
+# carries analyzer severities, so a context without it compiles under different
+# rules than a developer's machine and the build breaks only in CI.
+!.editorconfig
 !Directory.Build.props
 !Directory.Packages.props
 !global.json
