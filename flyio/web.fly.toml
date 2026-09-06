@@ -1,0 +1,50 @@
+# The product surface. Entered only from a browser.
+
+app = "architecture-standards-init-example-web-dev"
+primary_region = "fra"
+
+[build]
+  dockerfile = "../web/app/Dockerfile"
+  # The pnpm WORKSPACE root, not the app directory: the install needs
+  # pnpm-workspace.yaml and the lockfile, which live one level up.
+  context = "../web"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  HOSTNAME = "0.0.0.0"
+  APP_ENVIRONMENT = "dev"
+
+  # The PUBLIC URL, not `.internal`. The Fly proxy starts a stopped machine;
+  # `.internal` resolves straight to machines and does not, so a call over
+  # `.internal` to a scaled-to-zero callee fails instead of waking it (FLY-IO §6).
+  # This is read at request time by /api/config and the BFF proxy — never baked
+  # into the bundle, which is what lets one image serve every environment.
+  API_BASE_URL = "https://architecture-standards-init-example-api-dev.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+
+  # Zero: nothing calls this in-request. A cold start here is a slow first page,
+  # not a failed call.
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[http_service.checks]]
+    # A dedicated route that exists only to be checked. Pointing this at `/` would
+    # return 200 for a broken bundle, so the check would pass on a white screen.
+    path = "/healthz"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

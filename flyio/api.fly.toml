@@ -1,0 +1,50 @@
+# The one service. Owns apidb; nothing else opens a connection to it (P3).
+
+app = "architecture-standards-init-example-api-dev"
+primary_region = "fra"
+
+[build]
+  # Both paths are resolved relative to THIS FILE, not to the working directory.
+  # `context` is the field most often left out and most often wrong: omitting it
+  # makes the build depend on where flyctl happened to be invoked, so it works
+  # from the repo root and breaks in CI, or the reverse (FLY-IO §4).
+  dockerfile = "../src/ArchitectureStandardsInitExample.Api/Dockerfile"
+  context = ".."
+
+[env]
+  # Everything here is public: it lands in the image config and in
+  # `fly config show`. Connection strings are Fly secrets, set with --stage from
+  # the deploy workflow.
+  ASPNETCORE_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS = "http://+:8080"
+  DATABASE_PROVIDER = "PostgreSQL"
+
+[http_service]
+  internal_port = 8080          # equals the port the process binds (ASPNETCORE_URLS)
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+
+  # Pinned, and the synchronous call that forces it, named: the frontend's server
+  # side fetches /api/boots while rendering the page, in-request. The alternative
+  # — letting this scale to zero and making the caller's timeout exceed the .NET
+  # cold start — is the option that gets written down far more often than it gets
+  # configured (FLY-IO §7).
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[http_service.checks]]
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    # Covers a .NET cold start plus first-boot schema work. Migrations run after
+    # Kestrel starts, so this window is headroom rather than a hard requirement.
+    grace_period = "60s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

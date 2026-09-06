@@ -1,0 +1,457 @@
+name: Deploy to Fly.io
+
+#   push tag v*
+#     ├── test              build + tests + the kernel ceiling
+#     ├── detect-changes    diff vs the PREVIOUS TAG -> per-service flags
+#     │                     plus: a service whose Fly app is missing is ALWAYS selected
+#     ├── build (matrix)    one image per changed service -> GHCR, built exactly once
+#     ├── deploy-postgres   gated separately: redeploying it restarts the database
+#     ├── deploy-api        after postgres
+#     ├── deploy-web        after api
+#     └── verify            assertions the platform health check cannot make
+#
+# Trigger on a tag, not on a branch push: a deploy should be an act, and the tag
+# is the record of it (P12).
+
+on:
+  push:
+    tags:
+      # Both cases, explicitly. In the estate's worked example a tag pushed as
+      # `V1.0.8` matched neither pattern its workflow declared, and that release
+      # shipped with nothing attached.
+      - "v*"
+      - "V*"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  SLUG: architecture-standards-init-example
+  ENVIRONMENT: dev
+  REGISTRY: ghcr.io
+  FLY_REGION: fra
+
+jobs:
+  # --------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - run: dotnet build ArchitectureStandardsInitExample.slnx --configuration Release
+      # Not `--nologo`: in the .NET 10 SDK's MTP mode that flag reaches the test
+      # application, which rejects it with exit code 5 and the misleading
+      # summary "Zero tests ran".
+      - run: dotnet test --configuration Release --no-build
+
+  # --------------------------------------------------------------------------
+  detect-changes:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    environment: dev
+    outputs:
+      # Job outputs must not contain '-': GitHub expressions read it as
+      # subtraction, so `needs.x.outputs.deploy-api` silently evaluates to 0.
+      postgres: ${{ steps.decide.outputs.postgres }}
+      api: ${{ steps.decide.outputs.api }}
+      web: ${{ steps.decide.outputs.web }}
+      matrix: ${{ steps.decide.outputs.matrix }}
+      image_tag: ${{ steps.decide.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Compare against the previous tag, and against what exists on Fly
+        id: decide
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          IMAGE_TAG="${TAG#v}"; IMAGE_TAG="${IMAGE_TAG#V}"
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+          # Against the PREVIOUS TAG, not the previous commit: a release is the
+          # unit of deployment, so the diff has to span the whole release.
+          PREVIOUS="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+          if [ -z "$PREVIOUS" ]; then
+            echo "No previous tag. This is the first release; everything is selected."
+            CHANGED="$(git ls-files)"
+          else
+            echo "Comparing ${PREVIOUS}...${TAG}"
+            CHANGED="$(git diff --name-only "${PREVIOUS}" "${TAG}")"
+          fi
+
+          changed() { echo "$CHANGED" | grep -qE "$1"; }
+
+          # A change to the kernel or the contracts invalidates every image that
+          # compiles them. Forgetting this ships a stale service against a
+          # changed kernel, and the failure appears at runtime, not at build.
+          SHARED='^(src/ArchitectureStandardsInitExample\.(ServiceDefaults|Contracts)/|Directory\.(Build|Packages)\.props$|global\.json$|\.editorconfig$)'
+
+          POSTGRES=false; API=false; WEB=false
+          changed '^flyio/postgres\.fly\.toml$' && POSTGRES=true || true
+          { changed '^src/ArchitectureStandardsInitExample\.Api/' \
+              || changed '^flyio/api\.fly\.toml$' \
+              || changed "$SHARED"; } && API=true || true
+          { changed '^web/' || changed '^flyio/web\.fly\.toml$'; } && WEB=true || true
+
+          # The rule that lets a cold estate come up from a single tag with no
+          # manual `fly launch` — and the one most often missing. At t=0 nothing
+          # exists, so without it the first tag deploys nothing at all.
+          EXISTING="$(flyctl apps list --json | jq -r '.[] | (.Name // .name)')"
+          absent() { ! echo "$EXISTING" | grep -qx "$1"; }
+
+          absent "${SLUG}-postgres"           && { POSTGRES=true; echo "postgres app absent -> selected"; } || true
+          absent "${SLUG}-api-${ENVIRONMENT}" && { API=true;      echo "api app absent -> selected"; }      || true
+          absent "${SLUG}-web-${ENVIRONMENT}" && { WEB=true;      echo "web app absent -> selected"; }      || true
+
+          {
+            echo "postgres=${POSTGRES}"
+            echo "api=${API}"
+            echo "web=${WEB}"
+          } >> "$GITHUB_OUTPUT"
+
+          # Only services with an image to build enter the matrix; postgres runs
+          # a stock upstream image and builds nothing.
+          SERVICES="[]"
+          [ "$API" = true ] && SERVICES="$(echo "$SERVICES" | jq -c '. + ["api"]')" || true
+          [ "$WEB" = true ] && SERVICES="$(echo "$SERVICES" | jq -c '. + ["web"]')" || true
+          echo "matrix={\"service\":${SERVICES}}" >> "$GITHUB_OUTPUT"
+
+          echo "postgres=${POSTGRES} api=${API} web=${WEB}"
+
+  # --------------------------------------------------------------------------
+  build:
+    name: Build ${{ matrix.service }}
+    needs: [test, detect-changes]
+    if: ${{ needs.detect-changes.outputs.matrix != '{"service":[]}' }}
+    runs-on: ubuntu-latest
+    strategy:
+      # One broken image must not cancel the others mid-push.
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve the build context for this service
+        id: ctx
+        run: |
+          case "${{ matrix.service }}" in
+            api)
+              echo "context=." >> "$GITHUB_OUTPUT"
+              echo "file=src/ArchitectureStandardsInitExample.Api/Dockerfile" >> "$GITHUB_OUTPUT"
+              ;;
+            web)
+              echo "context=web" >> "$GITHUB_OUTPUT"
+              echo "file=web/app/Dockerfile" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      # Build once. Every deploy step below references the result by tag; nothing
+      # downstream builds, and nothing builds the same source twice.
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ steps.ctx.outputs.context }}
+          file: ${{ steps.ctx.outputs.file }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.SLUG }}-${{ matrix.service }}:${{ needs.detect-changes.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.SLUG }}-${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # --------------------------------------------------------------------------
+  deploy-postgres:
+    name: Deploy postgres
+    needs: [detect-changes, build]
+    # Gated separately from the services: redeploying Postgres restarts it, so it
+    # runs when its own config changed or the app is absent — not on every tag.
+    if: >-
+      ${{ always() && !cancelled()
+          && needs.detect-changes.outputs.postgres == 'true'
+          && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_ORG: ${{ vars.FLY_ORG }}
+      APP: architecture-standards-init-example-postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: A missing database password fails the deploy
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          # Optional dependencies degrade (P8). A database credential is not
+          # optional: a service that boots without one falls back to an in-memory
+          # database and looks perfectly healthy while losing every write on
+          # restart. Failing here is the correct place to fail.
+          if [ -z "${POSTGRES_PASSWORD}" ]; then
+            echo "::error::POSTGRES_PASSWORD is not set in the 'dev' environment. See flyio/SECRETS.md."
+            exit 1
+          fi
+
+      - name: Ensure the app and its volume exist
+        run: |
+          set -euo pipefail
+          if flyctl apps list --json | jq -e --arg a "$APP" '.[] | select((.Name // .name) == $a)' >/dev/null; then
+            echo "App $APP already exists."
+          else
+            flyctl apps create "$APP" --org "${FLY_ORG:-personal}"
+          fi
+
+          if flyctl volumes list --app "$APP" --json | jq -e '.[] | select(.name == "asie_pgdata")' >/dev/null; then
+            echo "Volume asie_pgdata already exists."
+          else
+            flyctl volumes create asie_pgdata --app "$APP" --region "$FLY_REGION" --size 3 --yes
+          fi
+
+      - name: Set secrets
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          # --stage holds the change until the next deploy, so one release does
+          # not restart the app twice.
+          flyctl secrets set -a "$APP" "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" --stage
+
+      - name: Deploy
+        # --ha=false matters more here than anywhere: a second machine would get
+        # a second EMPTY volume, not a replica.
+        run: |
+          flyctl deploy --config flyio/postgres.fly.toml --app "$APP" \
+            --ha=false --wait-timeout 300
+
+  # --------------------------------------------------------------------------
+  deploy-api:
+    name: Deploy api
+    needs: [detect-changes, build, deploy-postgres]
+    # `success || skipped` on the upstream. Without the `|| skipped`, change
+    # detection and ordering fight each other, and any unchanged service in the
+    # middle of the chain blocks everything behind it.
+    if: >-
+      ${{ always() && !cancelled()
+          && needs.detect-changes.outputs.api == 'true'
+          && needs.build.result == 'success'
+          && (needs.deploy-postgres.result == 'success' || needs.deploy-postgres.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_ORG: ${{ vars.FLY_ORG }}
+      APP: architecture-standards-init-example-api-dev
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ensure the app exists
+        run: |
+          set -euo pipefail
+          if flyctl apps list --json | jq -e --arg a "$APP" '.[] | select((.Name // .name) == $a)' >/dev/null; then
+            echo "App $APP already exists."
+          else
+            flyctl apps create "$APP" --org "${FLY_ORG:-personal}"
+          fi
+
+      - name: Set secrets
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          # The connection string is ASSEMBLED here from one root secret plus
+          # known, non-secret facts, so no per-service credential is stored
+          # anywhere (FLY-IO §9). This service holds credentials for apidb and
+          # for nothing else (P3).
+          flyctl secrets set -a "$APP" \
+            "ConnectionStrings__apidb=Host=architecture-standards-init-example-postgres.internal;Port=5432;Database=apidb;Username=asie;Password=${POSTGRES_PASSWORD}" \
+            --stage
+
+      - name: Mirror the image into Fly's registry, then deploy it
+        # A COPY, not a rebuild: `imagetools create` moves the manifest, so the
+        # SAME DIGEST reaches both registries and build-once-deploy-many holds
+        # exactly. The mirror exists because Fly has no first-class credential
+        # for pulling a private third-party image, and a GHCR package is private
+        # by default (ADR-0002).
+        run: |
+          set -euo pipefail
+          SRC="${REGISTRY}/${{ github.repository_owner }}/${SLUG}-api:${IMAGE_TAG}"
+          DST="registry.fly.io/${APP}:${IMAGE_TAG}"
+
+          flyctl auth docker
+          docker buildx imagetools create --tag "$DST" "$SRC"
+          echo "Mirrored $SRC -> $DST"
+          # Print both digests: they must match, which is what makes the mirror
+          # a copy rather than a second build.
+          docker buildx imagetools inspect "$SRC" | head -3
+          docker buildx imagetools inspect "$DST" | head -3
+
+          flyctl deploy --config flyio/api.fly.toml --app "$APP" \
+            --image "$DST" --wait-timeout 300
+
+  # --------------------------------------------------------------------------
+  deploy-web:
+    name: Deploy web
+    needs: [detect-changes, build, deploy-api]
+    if: >-
+      ${{ always() && !cancelled()
+          && needs.detect-changes.outputs.web == 'true'
+          && needs.build.result == 'success'
+          && (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_ORG: ${{ vars.FLY_ORG }}
+      APP: architecture-standards-init-example-web-dev
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ensure the app exists
+        run: |
+          set -euo pipefail
+          if flyctl apps list --json | jq -e --arg a "$APP" '.[] | select((.Name // .name) == $a)' >/dev/null; then
+            echo "App $APP already exists."
+          else
+            flyctl apps create "$APP" --org "${FLY_ORG:-personal}"
+          fi
+
+      - name: Publish the version this deploy is serving
+        # Read at request time by /api/config, so the running page can say which
+        # build it is — and so the verify job can prove the addresses were not
+        # baked in at build time.
+        run: |
+          flyctl secrets set -a "$APP" "APP_VERSION=${IMAGE_TAG}" --stage
+
+      - name: Mirror the image into Fly's registry, then deploy it
+        run: |
+          set -euo pipefail
+          SRC="${REGISTRY}/${{ github.repository_owner }}/${SLUG}-web:${IMAGE_TAG}"
+          DST="registry.fly.io/${APP}:${IMAGE_TAG}"
+
+          flyctl auth docker
+          docker buildx imagetools create --tag "$DST" "$SRC"
+          echo "Mirrored $SRC -> $DST"
+
+          flyctl deploy --config flyio/web.fly.toml --app "$APP" \
+            --image "$DST" --wait-timeout 300
+
+  # --------------------------------------------------------------------------
+  verify:
+    name: Post-deploy assertions
+    needs: [detect-changes, deploy-api, deploy-web]
+    if: >-
+      ${{ always() && !cancelled()
+          && (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped')
+          && (needs.deploy-web.result == 'success' || needs.deploy-web.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
+    steps:
+      # `--wait-timeout` covers "did it start", not "is it correct". Each check
+      # below is something the platform health check cannot see.
+      - name: The API is on a real database, not a silent in-memory fallback
+        run: |
+          set -euo pipefail
+          API="https://${SLUG}-api-${ENVIRONMENT}.fly.dev"
+
+          BODY="$(curl -fsS --retry 6 --retry-delay 10 --retry-all-errors "${API}/health")"
+          echo "$BODY"
+
+          # The assertion that matters. A missing or wrong connection string does
+          # NOT make this service unhealthy — it makes it fall back to an
+          # in-memory database. The deploy goes green, /health says Healthy, and
+          # every write is lost on the next restart. This is the same shape as
+          # the empty-JWKS failure the standards call out for an identity
+          # service: syntactically fine, semantically dead.
+          if echo "$BODY" | jq -e '.checks[] | select(.name == "integrations") | .data.persistence | test("^absent")' >/dev/null; then
+            echo "::error::The API deployed with persistence DEGRADED — it is running on an in-memory database."
+            echo "::error::ConnectionStrings__apidb did not reach the app, or Postgres is unreachable."
+            exit 1
+          fi
+          echo "persistence: configured"
+
+      - name: The schema really migrated, and this build recorded its start
+        run: |
+          set -euo pipefail
+          API="https://${SLUG}-api-${ENVIRONMENT}.fly.dev"
+
+          # A row can only exist if MigrateAsync created the table and the boot
+          # recorder wrote to it after the migration signal completed. This is
+          # the cheap end-to-end proof that P4's migration path actually ran,
+          # rather than EnsureCreated having frozen the schema at first boot.
+          BOOTS="$(curl -fsS --retry 6 --retry-delay 10 --retry-all-errors "${API}/api/boots?limit=1")"
+          echo "$BOOTS"
+
+          TOTAL="$(echo "$BOOTS" | jq -r '.total')"
+          if [ "$TOTAL" -lt 1 ]; then
+            echo "::error::No boot records. The schema did not migrate, or the recorder never ran."
+            exit 1
+          fi
+
+          PROVIDER="$(echo "$BOOTS" | jq -r '.items[0].databaseProvider')"
+          if [ "$PROVIDER" != "PostgreSql" ]; then
+            echo "::error::The latest start reports provider '${PROVIDER}', expected 'PostgreSql'."
+            exit 1
+          fi
+          echo "schema migrated; latest start recorded on ${PROVIDER}"
+
+      - name: The frontend serves, and reaches the API through its own server side
+        run: |
+          set -euo pipefail
+          WEB="https://${SLUG}-web-${ENVIRONMENT}.fly.dev"
+
+          curl -fsS --retry 6 --retry-delay 10 --retry-all-errors "${WEB}/healthz" | jq -e '.status == "healthy"'
+
+          # The runtime config must carry the version THIS tag deployed. If it
+          # carries the previous one, values were baked into the bundle at build
+          # time and build-once-deploy-many is broken.
+          CONFIG="$(curl -fsS "${WEB}/api/config")"
+          echo "$CONFIG"
+          echo "$CONFIG" | jq -e --arg v "${IMAGE_TAG}" '.version == $v'
+
+          # And the whole path, through the BFF proxy rather than direct.
+          curl -fsS "${WEB}/api/proxy/api/boots?limit=1" | jq -e '.total >= 1'
+          echo "the frontend reaches the API through /api/proxy"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed ${IMAGE_TAG}"
+            echo ""
+            echo "| App | URL |"
+            echo "|---|---|"
+            echo "| web | https://${SLUG}-web-${ENVIRONMENT}.fly.dev |"
+            echo "| api | https://${SLUG}-api-${ENVIRONMENT}.fly.dev/health |"
+          } >> "$GITHUB_STEP_SUMMARY"

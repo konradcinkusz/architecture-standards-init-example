@@ -1,0 +1,62 @@
+# The database. One instance, one database per service inside it (P3): physical
+# co-location is a cost decision, the logical boundary is what must not be
+# crossed.
+#
+# No environment suffix in the name, deliberately: this one instance serves every
+# environment's databases, and splitting it later is a connection-string change
+# rather than a code change.
+
+app = "architecture-standards-init-example-postgres"
+primary_region = "fra"
+
+# There is no [http_service] and no [[services]] block, and that is the point.
+# This app is reachable only at architecture-standards-init-example-postgres.internal:5432
+# over Fly's private 6PN network. A database with a public listener is a database
+# waiting to be scanned (FLY-IO §5).
+#
+# It follows that `flyctl deploy` must not wait for an HTTP smoke check here, and
+# that reaching it from a laptop means:
+#   fly proxy 15432:5432 --app architecture-standards-init-example-postgres
+
+[build]
+  # A vanilla postgres image, pinned to a major. Fly's managed `postgres-flex`
+  # expects `fly postgres create`-style bootstrapping and never initializes
+  # against a plain `flyctl deploy`, with no useful error (FLY-IO §14).
+  image = "postgres:17-alpine"
+
+[env]
+  POSTGRES_USER = "asie"
+  POSTGRES_DB = "asie"
+  POSTGRES_INITDB_ARGS = "--encoding=UTF8 --locale=C"
+
+  # A SUBDIRECTORY of the mount, never the mount root: the volume root carries
+  # lost+found, and initdb refuses a non-empty data directory. The error
+  # ("initdb: directory not empty") names neither the volume nor the fix.
+  PGDATA = "/var/lib/postgresql/data/pgdata"
+
+# POSTGRES_PASSWORD is a Fly secret, set from the pipeline. Everything in [env]
+# above ends up in the image config and in `fly config show`.
+
+[[mounts]]
+  source = "asie_pgdata"
+  destination = "/var/lib/postgresql/data"
+  # Growing a volume later is possible; shrinking is not.
+  initial_size = "3gb"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
+# Runs on first boot only — the postgres entrypoint executes
+# /docker-entrypoint-initdb.d/*.sh only when the data directory is empty. This is
+# how a small init script reaches the container without building a custom image.
+[[files]]
+  guest_path = "/docker-entrypoint-initdb.d/01-create-databases.sh"
+  raw_value = """#!/bin/bash
+set -e
+for db in apidb; do
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+    SELECT 'CREATE DATABASE $db' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$db')\gexec
+EOSQL
+done
+"""
