@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DTOs that cross a service boundary. This is where shared *data* goes — never
+    the kernel (P2), however identical two copies would need to be.
+
+    It deliberately references nothing: a contract that drags a dependency in
+    behind it is not a contract, it is a library.
+  -->
+
+</Project>

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    P3 — one bounded context, one service, one database. This service owns
+    `apidb`; nothing else opens a connection to it.
+  -->
+
+  <PropertyGroup>
+    <UserSecretsId>architecture-standards-init-example-api</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../ArchitectureStandardsInitExample.ServiceDefaults/ArchitectureStandardsInitExample.ServiceDefaults.csproj" />
+    <ProjectReference Include="../ArchitectureStandardsInitExample.Contracts/ArchitectureStandardsInitExample.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

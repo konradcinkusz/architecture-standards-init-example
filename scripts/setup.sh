@@ -77,7 +77,7 @@ fi
 
 # --- 2. Dependencies --------------------------------------------------------
 step "2. Restoring dependencies"
-dotnet restore ArchitectureStandardsInitExample.sln
+dotnet restore ArchitectureStandardsInitExample.slnx
 ok ".NET packages restored"
 ( cd web && pnpm install --frozen-lockfile )
 ok "frontend packages installed"

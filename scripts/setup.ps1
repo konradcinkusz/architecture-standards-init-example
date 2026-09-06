@@ -93,7 +93,7 @@ if ($script:missing -gt 0) {
 
 # --- 2. Dependencies --------------------------------------------------------
 Write-Step "2. Restoring dependencies"
-& dotnet restore ArchitectureStandardsInitExample.sln
+& dotnet restore ArchitectureStandardsInitExample.slnx
 if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed." }
 Write-Ok ".NET packages restored"
 

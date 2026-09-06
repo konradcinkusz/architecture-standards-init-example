@@ -63,3 +63,22 @@ dotnet_naming_style.underscore_camel_style.capitalization = camel_case
 # CA1848 (LoggerMessage delegates) is real advice at high call volume and noise
 # at this size; revisit if a hot path shows up in a profile.
 dotnet_diagnostic.CA1848.severity = none
+
+# --- Test projects -----------------------------------------------------------
+# Test names are sentences: `List_clamps_an_absurd_limit_to_the_maximum_page_size`
+# states one business goal, which is the per-test bar (TESTING-STRATEGY §6).
+# CA1707 exists to keep underscores out of a public API surface; a test project
+# has no public API surface.
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+
+# --- Generated code ----------------------------------------------------------
+# EF Core writes these files and rewrites them on the next `dotnet ef migrations
+# add`. Hand-editing them to satisfy a style rule is work that gets reverted by
+# the tool, so the rules are turned off here rather than in a #pragma the
+# generator will overwrite.
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_diagnostic.CA1825.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.IDE0300.severity = none

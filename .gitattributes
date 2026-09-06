@@ -23,6 +23,7 @@ scripts/hooks/* text eol=lf
 *.cs            text diff=csharp
 *.csproj        text
 *.sln           text eol=crlf
+*.slnx          text
 *.props         text
 *.targets       text
 *.json          text

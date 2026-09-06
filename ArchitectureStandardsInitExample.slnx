@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ArchitectureStandardsInitExample.Api/ArchitectureStandardsInitExample.Api.csproj" />
+    <Project Path="src/ArchitectureStandardsInitExample.AppHost/ArchitectureStandardsInitExample.AppHost.csproj" />
+    <Project Path="src/ArchitectureStandardsInitExample.Contracts/ArchitectureStandardsInitExample.Contracts.csproj" />
+    <Project Path="src/ArchitectureStandardsInitExample.ServiceDefaults/ArchitectureStandardsInitExample.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ArchitectureStandardsInitExample.Api.Tests/ArchitectureStandardsInitExample.Api.Tests.csproj" />
+  </Folder>
+</Solution>
