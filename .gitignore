@@ -98,3 +98,6 @@ docs/diagrams/rendered/
 
 # Aspire / local tooling
 .aspire/
+# Written by the Aspire CLI when the CLI bundle is enabled. It records a path on
+# the machine that ran it, so it is a local artifact rather than a repo setting.
+aspire.config.json

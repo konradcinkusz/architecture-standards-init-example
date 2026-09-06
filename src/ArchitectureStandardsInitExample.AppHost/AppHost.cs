@@ -32,6 +32,13 @@ var api = builder.AddProject<Projects.ArchitectureStandardsInitExample_Api>("api
 // the Next.js process the service-discovery variables the BFF proxy's candidate
 // ladder reads.
 builder.AddNextJsApp("web", "../../web/app")
+    // WithPnpm is not optional here. Without it the JavaScript hosting
+    // integration picks its own package manager and runs `npm install` in
+    // web/app — which creates a second node_modules and a package-lock.json
+    // beside a pnpm workspace, i.e. exactly the mixed npm/pnpm tree
+    // FRONTEND-BFF §7 calls an anti-pattern with no upside. Caught by running
+    // this AppHost, not by reading it.
+    .WithPnpm()
     .WithReference(api)
     .WaitFor(api)
     .WithHttpEndpoint(env: "PORT")
