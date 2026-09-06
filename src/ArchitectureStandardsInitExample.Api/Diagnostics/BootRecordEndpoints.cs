@@ -26,7 +26,7 @@ public static class BootRecordEndpoints
     public static IEndpointRouteBuilder MapBootRecordEndpoints(this IEndpointRouteBuilder app)
     {
         // The authorization triad (SERVICE-API-PATTERNS §2) collapses to one
-        // group here because this system has no accounts (ADR-0003). When it
+        // group here because this system has no accounts (ADR-0004). When it
         // gains them, the authenticated and admin groups are declared alongside
         // this one, in this file, where a missing RequireAuthorization is
         // greppable rather than invisible in an attribute somewhere.

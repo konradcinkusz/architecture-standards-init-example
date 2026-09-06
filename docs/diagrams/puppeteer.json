@@ -1,0 +1,4 @@
+{
+  "//": "The renderer drives a headless Chromium. CI containers and dev containers commonly run as root, where Chromium's sandbox refuses to start — these are the working flags (RESEARCH-DOCUMENTATION, 'Diagrams in a PDF').",
+  "args": ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+}

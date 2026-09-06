@@ -11,7 +11,7 @@ import { backendFor, candidatesFor } from "@/lib/backends";
  * and a timeout sized for a scale-to-zero cold start (P7).
  *
  * There is no bearer injection, because this system has no user accounts
- * (ADR-0003). When it gains them, the token is read from the HttpOnly cookie
+ * (ADR-0004). When it gains them, the token is read from the HttpOnly cookie
  * here, server-side, and client JavaScript still never sees it.
  */
 

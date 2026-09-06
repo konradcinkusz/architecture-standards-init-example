@@ -6,7 +6,7 @@ them; a decision somebody can take is.
 ## The topology
 
 Three apps, in `fra`. Region chosen for proximity to the users, and recorded as
-[ADR-0001](../docs/adr/0001-primary-region-fra.md) because a region is expensive
+[ADR-0002](../docs/adr/0002-primary-region-fra.md) because a region is expensive
 to change once volumes exist — a volume is a local disk pinned to one machine in
 one region, and moving it is a dump and restore.
 
@@ -33,7 +33,7 @@ one region, and moving it is a dump and restore.
 ```
 
 There is no identity service, because this system has no user accounts
-([ADR-0003](../docs/adr/0003-no-user-accounts.md)). If it gains them, a fourth app
+([ADR-0004](../docs/adr/0004-no-user-accounts.md)). If it gains them, a fourth app
 joins between the frontend and the API — `…-authservice-dev`, pinned to one
 machine, because every validator fetches its JWKS in-request and re-fetches when
 the cache expires.
@@ -113,7 +113,7 @@ Say so, so nobody re-proposes them:
 ## The registry, and why the deploy has a mirror step
 
 Images are built once and pushed to **GHCR**
-([ADR-0002](../docs/adr/0002-ghcr-as-the-canonical-registry.md)) — the
+([ADR-0003](../docs/adr/0003-ghcr-as-the-canonical-registry.md)) — the
 constitution's answer, portable and free at this scale.
 
 Fly has no first-class credential for pulling from a private third-party registry,

@@ -88,7 +88,7 @@ to fail.
 
 ## This system holds no signing key
 
-There is no identity service here and no user accounts (ADR-0003), so there is no
+There is no identity service here and no user accounts (ADR-0004), so there is no
 key material in this repository at all — no signing key, no JWKS, nothing to
 rotate. When the system gains accounts, the identity service is adopted as an
 external service and **this repository still holds no signing key**: exactly one

@@ -1,0 +1,179 @@
+% =============================================================================
+%  architecture-standards-init-example — project overview
+%
+%  WHAT THIS DOCUMENT IS NOT.
+%
+%  This is a project overview. It is *not* a research paper under the estate's
+%  research documentation standard, and none of that standard's evidence rules
+%  govern it: it asks no question whose answer was unknown before the work, it
+%  reports no measurement, and it claims no reproducible result. It borrows the
+%  house look because two documents handed to the same reader should look like
+%  they came from the same shop — nothing more.
+%
+%  For that reason it lives in docs/papers/ and not docs/research/papers/. The
+%  path keeps the distinction visible. Filing it under the research tree to
+%  inherit an existing .gitignore line would buy one line of config at the cost
+%  of the term that standard defines narrowly on purpose.
+%
+%  SOURCE OF TRUTH. This document presents docs/architecture/00-ARCHITECTURE.md
+%  and the ADRs under docs/adr/. It introduces no fact those files do not already
+%  carry. That is the non-research analogue of "a paper introduces no numbers of
+%  its own", and it exists for the same reason: two documents that are allowed to
+%  disagree eventually will.
+%
+%  ACCEPTED DRIFT. A curated .tex presentation of a markdown document is not a
+%  mechanical transform, so nothing enforces that an edit to one reaches the
+%  other. That is an accepted consequence, recorded here rather than papered over
+%  by implying a convention covers it. If the two visibly diverge more than once,
+%  add a cheap mechanical check — a section-heading diff — rather than a full
+%  change-coupling rule.
+%
+%  \paperstatus is repurposed. The template's marker carries a draft/verified
+%  axis, which does not apply here; it carries this project's phase instead.
+%
+%  BUILD. Manual only:  Actions -> "Build the project overview PDF" -> Run.
+%  The workflow renders docs/diagrams/*.mmd to vector PDFs before LaTeX runs.
+%  Only this .tex is committed — the PDF and the rendered diagrams are gitignored,
+%  because a checked-in artifact disagrees with its source the first time the
+%  source changes.
+% =============================================================================
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage[english]{babel}
+\usepackage[margin=2.6cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+\usepackage[table]{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\paperstatus}{Scaffolded --- no product domain yet}
+\newcommand{\projectname}{architecture-standards-init-example}
+
+\definecolor{rule}{HTML}{C8C4BE}
+\definecolor{muted}{HTML}{5F5B57}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{muted}{\projectname}}
+\fancyhead[R]{\small\textcolor{muted}{\paperstatus}}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\title{\vspace{-1.5cm}\textbf{\projectname}\\[0.3em]
+       \large A worked run of the estate's greenfield initializer}
+\author{konradcinkusz}
+\date{6 September 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+\noindent
+This repository is what the estate's generic template produces when it is run
+against an empty repository: an Aspire composition root, a shared kernel with
+mechanical guards on its scope, one service that owns its database and migrates
+it from a hosted service, a Next.js product surface whose browser talks only to
+its own origin, a container per service, a three-app Fly.io topology, and seven
+workflows wired on the first commit. It exists to be read as an example of the
+architecture rather than as a product. It carries no domain model, deliberately.
+\end{abstract}
+
+\section{What was built}
+
+One bounded context, one service, one database, one screen. The smallest system
+that exercises every principle rather than a demonstration of every guide at once.
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Piece} & \textbf{Responsibility} \\
+\midrule
+AppHost        & the development composition root; not the production topology \\
+ServiceDefaults & eight plumbing concerns, 442 lines, guarded by a test and CI \\
+Contracts      & the DTOs that cross a boundary \\
+Api            & owns \texttt{apidb}; \texttt{/health}, \texttt{/alive}, \texttt{/api/boots} \\
+web            & the browser's only origin; runtime config and a BFF proxy \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{../diagrams/rendered/a1-system-topology.pdf}
+\caption{The system. The AppHost's edge is dashed because it exists only during
+development: production is described by \texttt{flyio/*.fly.toml} and the deploy
+workflow, and treating the composition root as a second runtime is what produces
+drift between the two.}
+\end{figure}
+
+\section{The decisions that were taken rather than defaulted}
+
+Three of these the initializer asks about explicitly, because each is invisible in
+the code and expensive to reverse. The rest were taken while building and are
+recorded for the same reason: a year from now the question is not what was done,
+but whether the alternative was considered.
+
+\begin{center}
+\begin{tabular}{@{}llp{7.4cm}@{}}
+\toprule
+\textbf{ADR} & \textbf{Decision} & \textbf{Why it is a decision and not a default} \\
+\midrule
+0002 & \texttt{fra} as the region & A volume is a local disk pinned to one region; moving it is a dump and restore, not a config edit \\
+0003 & GHCR, mirrored into Fly's registry & A GHCR package is private by default and Fly cannot pull one; the mirror copies the manifest, so the same digest reaches both \\
+0004 & No user accounts & A login page for a system with nobody to log in is scaffolding the first ticket deletes \\
+0005 & PostgreSQL migrations only & EF keeps one snapshot per assembly, so two providers means two projects; nothing targets SQL Server \\
+0006 & An evaluation-only Aspire API & Development-only, so the exposure is one edit to one file \\
+0007 & A boot log as the vertical slice & The mechanism needs exercising; a product nobody described does not need inventing \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{How it ships}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.9\linewidth]{../diagrams/rendered/a2-deploy-pipeline.pdf}
+\caption{The tag-driven pipeline. Two rules in it are the ones most often missing.
+A service whose Fly app does not exist is \emph{always} selected --- without it,
+the first tag against an empty organisation deploys nothing at all, because
+nothing has changed. And every gate accepts \texttt{success} \emph{or}
+\texttt{skipped} from upstream --- without it, change detection and ordering fight
+each other, and any unchanged service in the middle of the chain blocks everything
+behind it.}
+\end{figure}
+
+\section{What it deliberately does not have}
+
+Stated so that scope creep has something to fail against: no second service, no
+event bus, no service mesh, no custom DI container, no abstraction over the
+platform, no user store or token minting anywhere, and no sample domain model.
+Each of those is a design decision with a reason when the time comes, not a
+scaffolding default.
+
+\section{Where the real reading is}
+
+This document is a presentation. The repository is the source.
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Question} & \textbf{File} \\
+\midrule
+How do I run it?                      & \texttt{README.md}, \texttt{scripts/README.md} \\
+What breaks without this variable?    & \texttt{secrets.env.example} \\
+Where does a secret live?             & \texttt{flyio/SECRETS.md} \\
+What runs where, and what does it cost? & \texttt{flyio/INFRASTRUCTURE-ANALYSIS.md} \\
+Where does this stand against P1--P15?  & \texttt{docs/architecture/00-ARCHITECTURE.md} \\
+Why is it like this?                  & \texttt{docs/adr/} \\
+What should be built next?            & \texttt{docs/ux/UI-UX.md} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

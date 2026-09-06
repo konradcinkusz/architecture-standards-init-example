@@ -12,7 +12,7 @@ namespace ArchitectureStandardsInitExample.ServiceDefaults;
 /// one: a symmetric secret shared between services means verify = mint, and any
 /// holder can forge a token for any user.
 /// <para>
-/// This system currently has no user accounts (ADR-0003), so no service in this
+/// This system currently has no user accounts (ADR-0004), so no service in this
 /// repository calls this method. It stays in the kernel because P2's table
 /// defines the kernel's shape, not today's consumer list — a service opts in
 /// line by line, and the line to opt in with has to exist.

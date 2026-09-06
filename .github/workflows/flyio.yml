@@ -294,7 +294,7 @@ jobs:
         # SAME DIGEST reaches both registries and build-once-deploy-many holds
         # exactly. The mirror exists because Fly has no first-class credential
         # for pulling a private third-party image, and a GHCR package is private
-        # by default (ADR-0002).
+        # by default (ADR-0003).
         run: |
           set -euo pipefail
           SRC="${REGISTRY}/${{ github.repository_owner }}/${SLUG}-api:${IMAGE_TAG}"

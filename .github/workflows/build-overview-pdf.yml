@@ -28,6 +28,10 @@ jobs:
       # Diagrams are rendered BEFORE LaTeX runs: a build that reaches an
       # \includegraphics whose file is not there fails on that line, with an
       # error that names the missing PDF and not the missing step.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
       - uses: actions/setup-node@v6
         with:
           node-version: 22
@@ -36,25 +40,12 @@ jobs:
         working-directory: docs/diagrams
         run: |
           set -euo pipefail
-          # `npm ci` installs the version the lockfile records, rather than
-          # whatever the registry's floating latest is on the day the PDF is
-          # built. And the binary is resolved locally: `npx mmdc` on a fresh
-          # clone reaches past an empty node_modules to the registry and pulls a
-          # squatter package literally named `mmdc`, failing with a message that
-          # names nothing useful.
-          npm ci
-          mkdir -p rendered
-          for source in *.mmd; do
-            slug="${source%.mmd}"
-            echo "Rendering ${slug}"
-            # --no-sandbox because the renderer drives a headless Chromium and CI
-            # containers commonly run as root, where its sandbox refuses to start.
-            ./node_modules/.bin/mmdc \
-              -i "$source" \
-              -o "rendered/${slug}.pdf" \
-              --pdfFit -b transparent \
-              --puppeteerConfigFile puppeteer.json
-          done
+          # From the lockfile, so the PDF is built with the renderer version the
+          # repository records rather than whatever the registry's floating
+          # latest happens to be that day. render.mjs invokes the local binary
+          # for the reason documented in its header.
+          pnpm install --frozen-lockfile
+          pnpm render
           ls -la rendered/
 
       - uses: xu-cheng/latex-action@v4

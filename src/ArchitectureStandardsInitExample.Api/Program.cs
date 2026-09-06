@@ -16,7 +16,7 @@ builder.Services.AddSwaggerWithJwt(
     description: "The one service in this system. Owns apidb; exposes /health, /alive and the boot log.");
 
 // Deliberately NOT called here, and both absences are decisions rather than
-// omissions (ADR-0003):
+// omissions (ADR-0004):
 //   builder.Services.AddJwtAuthentication(builder.Configuration);
 //     — this system has no user accounts, so there is nothing to authenticate.
 //   builder.Services.AddCorsPolicy(builder.Configuration, CorsPolicies.Frontend);
