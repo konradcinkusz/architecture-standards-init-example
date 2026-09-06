@@ -1,0 +1,43 @@
+# Normalize line endings on commit; check out platform-native.
+# A real .gitattributes, not the stock template with every rule commented out
+# (REPO-BASELINE §1).
+* text=auto
+
+# Files that must keep LF regardless of platform: shell scripts run inside
+# Linux containers and in CI, and a CRLF shebang is a "bad interpreter" error.
+*.sh            text eol=lf
+*.bash          text eol=lf
+Dockerfile      text eol=lf
+*.Dockerfile    text eol=lf
+.dockerignore   text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.toml          text eol=lf
+scripts/hooks/* text eol=lf
+
+# Files that must keep CRLF: PowerShell on Windows PowerShell hosts.
+*.ps1           text eol=crlf
+*.psm1          text eol=crlf
+
+# Explicit text types
+*.cs            text diff=csharp
+*.csproj        text
+*.sln           text eol=crlf
+*.props         text
+*.targets       text
+*.json          text
+*.md            text
+*.tex           text
+*.mmd           text
+*.ts            text
+*.tsx           text
+
+# Binary — never diffed, never line-ending-converted
+*.png           binary
+*.jpg           binary
+*.ico           binary
+*.pdf           binary
+*.woff2         binary
+
+# Keep generated lockfiles out of diffs but in review
+pnpm-lock.yaml  linguist-generated=true -diff

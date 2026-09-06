@@ -1,0 +1,41 @@
+<Project>
+
+  <!--
+    Everything that is not a package version (REPO-BASELINE §1). Versions live in
+    Directory.Packages.props, exactly once each; projects reference packages by
+    name with no Version attribute.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- A warning nobody has to act on is a warning nobody reads. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+
+    <!-- Deterministic, reproducible builds; source-linked back to the commit. -->
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <Deterministic>true</Deterministic>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!-- Package metadata, set once for every project in the solution. -->
+  <PropertyGroup>
+    <Product>architecture-standards-init-example</Product>
+    <Company>konradcinkusz</Company>
+    <Authors>konradcinkusz</Authors>
+    <Copyright>Copyright (c) 2026 konradcinkusz</Copyright>
+    <RepositoryUrl>https://github.com/konradcinkusz/architecture-standards-init-example</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+</Project>

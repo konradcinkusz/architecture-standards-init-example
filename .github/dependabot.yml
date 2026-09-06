@@ -1,0 +1,48 @@
+# Every ecosystem the repository actually has (REPO-BASELINE §1). An ecosystem
+# that exists in the tree but not in this file is a set of pins nobody owns.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      aspire:
+        patterns: ["Aspire.*"]
+      opentelemetry:
+        patterns: ["OpenTelemetry.*"]
+      entity-framework:
+        patterns: ["Microsoft.EntityFrameworkCore.*", "Npgsql.EntityFrameworkCore.*"]
+      test-stack:
+        patterns: ["xunit*", "Microsoft.NET.Test.Sdk", "Microsoft.AspNetCore.Mvc.Testing"]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      next:
+        patterns: ["next", "react", "react-dom", "eslint-config-next"]
+      types:
+        patterns: ["@types/*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+
+  # One entry per Dockerfile: Dependabot tracks base images per directory, and a
+  # single root entry would miss both of these.
+  - package-ecosystem: docker
+    directory: /src/ArchitectureStandardsInitExample.Api
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /web/app
+    schedule:
+      interval: weekly

@@ -1,0 +1,36 @@
+# Secret scanning runs as a pre-commit hook AND as a CI job (P5, REPO-BASELINE §2).
+# Both, deliberately: the hook catches the mistake before it becomes history, the
+# job catches contributors who never installed the hook.
+title = "architecture-standards-init-example"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "postgres-connection-string-with-password"
+description = "PostgreSQL connection string carrying an inline password"
+regex = '''(?i)(host|server)\s*=\s*[^\s;]+;.*?password\s*=\s*(?!\$|\{\{|<)[^\s;"']{4,}'''
+tags = ["database", "connection-string"]
+
+[[rules]]
+id = "private-key-pem-inline"
+description = "A PEM private key pasted into a tracked file"
+regex = '''-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'''
+tags = ["key", "pem"]
+
+[allowlist]
+description = "Documentation and templates that must show the SHAPE of a secret without carrying one"
+paths = [
+  '''secrets\.env\.example''',
+  '''flyio/SECRETS\.md''',
+  '''scripts/README\.md''',
+  '''docs/.*\.md''',
+  '''\.gitleaks\.toml''',
+  '''pnpm-lock\.yaml''',
+]
+# Placeholders that are deliberately not secrets. Anything matching these is a
+# shape, not a value — if one of these strings ever appears as a real credential,
+# that credential was already worthless.
+regexes = [
+  '''(?i)(changeme|placeholder|example|your-[a-z-]+-here|<[a-z-]+>|\$\{[A-Z_]+\}|xxxxx+)''',
+]

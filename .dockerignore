@@ -1,0 +1,24 @@
+# Exclusion-based (REPO-BASELINE §1): deny everything, then admit exactly what a
+# .NET image build needs. The inclusion-based alternative ships `web/`, `tests/`
+# and `docs/` into every backend build context the first time somebody adds a
+# directory and forgets to deny it.
+#
+# This file serves the builds whose context is the repository root — the .NET
+# services. The frontend build has its own context (`web/`) and its own
+# `web/.dockerignore`.
+
+*
+
+# The solution's build inputs
+!Directory.Build.props
+!Directory.Packages.props
+!global.json
+!NuGet.config
+!src/
+
+# ...but never their outputs, which would poison the restore layer and can
+# carry a developer's local user-secrets id.
+src/**/bin/
+src/**/obj/
+**/.vs/
+**/*.user

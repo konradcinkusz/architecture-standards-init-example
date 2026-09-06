@@ -1,0 +1,19 @@
+# Security-relevant paths do not get merged without the right reviewer
+# (REPO-BASELINE §1).
+
+*                               @konradcinkusz
+
+# The kernel is the file set P2's ceiling exists to protect. A change here
+# reaches every service that compiles it.
+/src/ArchitectureStandardsInitExample.ServiceDefaults/  @konradcinkusz
+
+# Anything that can create infrastructure, move a secret, or ship an image.
+/.github/workflows/             @konradcinkusz
+/flyio/                         @konradcinkusz
+/.gitleaks.toml                 @konradcinkusz
+/secrets.env.example            @konradcinkusz
+/scripts/                       @konradcinkusz
+
+# The decisions themselves.
+/docs/adr/                      @konradcinkusz
+/docs/architecture/             @konradcinkusz

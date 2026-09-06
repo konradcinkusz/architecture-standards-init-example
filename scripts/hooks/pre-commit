@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Installed by scripts/setup.sh (or setup.ps1) into .git/hooks/pre-commit.
+# Blocks a commit whose staged changes contain a credential (P5).
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks not installed — install it or commit with --no-verify." >&2
+  echo "pre-commit: the CI secret-scan job still runs, so this is a delay, not a bypass." >&2
+  exit 1
+fi
+
+gitleaks protect --staged --redact --config "$REPO_ROOT/.gitleaks.toml" || {
+  cat >&2 <<'MSG'
+
+pre-commit: a staged change looks like a credential.
+
+If it IS a credential: unstage it, move the value to `dotnet user-secrets` (local)
+or a Fly secret (deployed), and reference it by configuration key. See
+flyio/SECRETS.md for the journey a value takes.
+
+If it is NOT a credential: add the path or the shape to the [allowlist] in
+.gitleaks.toml, in the same commit, so the exemption is reviewable.
+MSG
+  exit 1
+}
