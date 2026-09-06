@@ -176,38 +176,15 @@ jobs:
 
       # A stale document is a review finding, not a cosmetic issue (P14). A dead
       # relative link is the cheapest kind to catch mechanically.
+      #
+      # This was an inlined shell loop and it never ran once: the step is
+      # `shell: bash -e`, the script set `pipefail`, and the first markdown file
+      # with no links made `grep` exit 1 — killing the script before it checked
+      # anything, with exit 1 and no output. It failed closed, so nothing was
+      # merged past it, but it reported a verdict it had not earned. Logic that
+      # can fail this way belongs in a file that runs identically on a laptop.
       - name: Every relative link in the docs resolves
-        run: |
-          set -euo pipefail
-          # A file, not a variable: the inner loop runs in a subshell behind a
-          # pipe, so an incremented counter would not survive back to this shell.
-          BROKEN="$(mktemp)"
-          while IFS= read -r file; do
-            grep -oE '\]\([^)#][^)]*\)' "$file" 2>/dev/null \
-              | sed -E 's/^\]\((.*)\)$/\1/' \
-              | while IFS= read -r link; do
-                  case "$link" in
-                    http*|mailto:*|'#'*) continue ;;
-                  esac
-                  target="${link%%#*}"
-                  [ -z "$target" ] && continue
-                  resolved="$(cd "$(dirname "$file")" && realpath -m "$target")"
-                  if [ ! -e "$resolved" ]; then
-                    echo "::error file=${file}::broken relative link: ${link}"
-                    echo "${file} -> ${link}" >> "$BROKEN"
-                  fi
-                done
-          done < <(find . -name '*.md' \
-                     -not -path './node_modules/*' \
-                     -not -path './web/node_modules/*' \
-                     -not -path './tests/e2e/node_modules/*' \
-                     -not -path './docs/diagrams/node_modules/*')
-
-          if [ -s "$BROKEN" ]; then
-            echo "::error::$(wc -l < "$BROKEN") broken relative link(s) in the documentation."
-            exit 1
-          fi
-          echo "All relative links resolve."
+        run: node scripts/check-links.mjs
 
   images:
     name: Container images build

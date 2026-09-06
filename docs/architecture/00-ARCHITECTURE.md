@@ -87,11 +87,10 @@ acknowledged deviation is a decision; an unacknowledged one is drift.**
 
 | Since | Deviation | Principle | Reason, or the plan |
 |---|---|---|---|
-| — | *(none)* | | |
+| 2026-09-06 | **No dependency audit in CI.** CodeQL runs; the `dependency-review` job that paired with it has been removed | [`REPO-BASELINE`](https://github.com/konradcinkusz/architecture-standards/blob/main/docs/guides/REPO-BASELINE.md) §1 — "CodeQL / SAST + dependency audit in CI" | `actions/dependency-review-action` requires the repository's **Dependency graph** feature, which is not enabled — both `dependency-graph/*` API endpoints return 404. Left in place it failed on every pull request for a reason no diff could fix, and a permanently red check trains people to ignore CI. Marking it `continue-on-error` was rejected: that converts a security gate into decoration. **The plan:** enable Dependency graph in *Settings → Security*, then restore the job — it is six lines. Until then Dependabot still raises update pull requests, so vulnerable pins are surfaced, just not blocked at the boundary |
 
-The register is empty at the first commit. That is the only moment it is expected
-to be, and it is not a claim that this repository is finished — it is a claim that
-nothing it does today knowingly departs from the constitution.
+One row, opened on the first day. The register exists so a departure is a dated
+decision rather than an absence somebody notices a year later and cannot explain.
 
 Three things worth stating so nobody files them as findings, because each is a
 recorded decision rather than a gap:

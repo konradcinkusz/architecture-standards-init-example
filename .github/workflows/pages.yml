@@ -1,0 +1,121 @@
+name: GitHub Pages
+
+# Publishes the init run's session report as a rendered page.
+#
+# Why this workflow exists at all, rather than a setting somebody clicked:
+# Pages configured by hand is configuration that lives nowhere in git — the same
+# objection FLY-IO §11 makes to `fly launch`. `configure-pages` with
+# `enablement: true` turns the feature on from here, so the whole arrangement is
+# reviewable in a diff.
+#
+# Why there is a build step for one static file: docs/session-report.html is
+# generator output and is committed byte-for-byte as produced, which means it
+# carries no <!doctype>, no <html>, no charset and no viewport — the tool that
+# normally renders it supplies those itself. Served raw, a browser would fall
+# back to quirks mode, guess the encoding (mojibake on every em dash and arrow)
+# and skip mobile scaling. The wrapper is applied here rather than edited into
+# the file, so regenerating the report never has to fight a hand edit.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/session-report.html
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one in flight: a half-finished Pages
+# deploy leaves the site serving whichever files happened to upload.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/configure-pages@v5
+        with:
+          # Turns Pages on if it is off. Keeps the setting in this file rather
+          # than in somebody's browser history.
+          enablement: true
+
+      - name: Wrap the report in a real HTML document
+        run: |
+          set -euo pipefail
+          SRC=docs/session-report.html
+          mkdir -p _site
+
+          # The title comes out of the report itself, so renaming the report
+          # does not silently leave a stale title here.
+          TITLE="$(sed -n 's:.*<title>\(.*\)</title>.*:\1:p' "$SRC" | head -1)"
+          TITLE="${TITLE:-Session report}"
+          echo "title: ${TITLE}"
+
+          {
+            echo '<!doctype html>'
+            echo '<html lang="en">'
+            echo '<head>'
+            echo '<meta charset="utf-8">'
+            echo '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            echo "<title>${TITLE}</title>"
+            echo '<meta name="description" content="Token, timing and phase breakdown of the /init-generic-template run that scaffolded this repository.">'
+            echo '<meta name="color-scheme" content="light dark">'
+            echo '</head>'
+            echo '<body>'
+            # The report's own <title>/<link>/<style> land in the body. That is
+            # well-defined: the parser routes those through the in-head rules, so
+            # the stylesheet applies and the head <title> above still wins.
+            cat "$SRC"
+            echo '</body>'
+            echo '</html>'
+          } > _site/index.html
+
+          # A stable second path, so a link to the report survives anything else
+          # being added to the site later.
+          cp _site/index.html _site/session-report.html
+
+          # No Jekyll pass: nothing here needs one, and it would silently drop
+          # any file whose name begins with an underscore.
+          touch _site/.nojekyll
+
+          echo "built:"; ls -la _site/
+
+      - name: The wrapper actually took
+        run: |
+          set -euo pipefail
+          # A rendering gate, not a formality: without the doctype the page
+          # renders in quirks mode, and without the charset every em dash in it
+          # turns to mojibake. Both failures still serve HTTP 200, so nothing
+          # downstream would notice.
+          grep -qi '^<!doctype html>' _site/index.html || { echo "::error::missing doctype"; exit 1; }
+          grep -qi '<meta charset="utf-8">' _site/index.html || { echo "::error::missing charset"; exit 1; }
+          grep -qi 'name="viewport"' _site/index.html || { echo "::error::missing viewport"; exit 1; }
+          grep -q 'class="wrap"' _site/index.html || { echo "::error::report body did not make it into the page"; exit 1; }
+          echo "doctype, charset, viewport and report body all present."
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Summary
+        run: |
+          {
+            echo "### Published"
+            echo ""
+            echo "${{ steps.deploy.outputs.page_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -96,6 +96,14 @@ secrets.env
 docs/papers/*.pdf
 docs/diagrams/rendered/
 
+# IDE scratch state. Visual Studio holds a lock on files under .vs/, so an
+# un-ignored one does not merely add noise — `git add -A` fails outright with
+# "Permission denied" while the IDE is open.
+.vs/
+.idea/
+*.user
+*.suo
+
 # Aspire / local tooling
 .aspire/
 # Written by the Aspire CLI when the CLI bundle is enabled. It records a path on

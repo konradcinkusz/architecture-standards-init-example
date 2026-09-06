@@ -10,13 +10,12 @@
 [![GitHub issues](https://flat.badgen.net/github/issues/konradcinkusz/architecture-standards-init-example?icon=github&color=black&scale=1.01)](https://github.com/konradcinkusz/architecture-standards-init-example/issues "GitHub issues")
 [![GitHub pull requests](https://flat.badgen.net/github/prs/konradcinkusz/architecture-standards-init-example?icon=github&color=black&scale=1.01)](https://github.com/konradcinkusz/architecture-standards-init-example/pulls "GitHub pull requests")
 [![CI](https://github.com/konradcinkusz/architecture-standards-init-example/actions/workflows/ci.yml/badge.svg)](https://github.com/konradcinkusz/architecture-standards-init-example/actions/workflows/ci.yml "CI")
-[![Fly.io](https://img.shields.io/badge/Fly.io-24175B?style=for-the-badge&logo=flydotio&logoColor=white)](https://architecture-standards-init-example-web-dev.fly.dev "Live on Fly.io")
 
 A worked run of the estate's greenfield initializer: what
 [`architecture-standards`](https://github.com/konradcinkusz/architecture-standards)
 produces when it is pointed at an empty repository. One Aspire composition root,
 one shared kernel, one service that owns its database, one Next.js surface in
-front of it, three Fly.io apps, and seven workflows — all of it compliant with the
+front of it, three Fly.io apps, and eight workflows — all of it compliant with the
 constitution on the first commit rather than on a later cleanup pass.
 
 **It ships no domain model, deliberately.** It is here to be read as an example of
@@ -108,7 +107,7 @@ and is written down in [`flyio/SECRETS.md`](flyio/SECRETS.md).
 | Where does a secret live? | [`flyio/SECRETS.md`](flyio/SECRETS.md) |
 | What runs where, and what does it cost? | [`flyio/INFRASTRUCTURE-ANALYSIS.md`](flyio/INFRASTRUCTURE-ANALYSIS.md) |
 | How should an agent work in here? | [`AGENTS.md`](AGENTS.md) |
-| How was this repository actually built? | [`docs/session-report.html`](docs/session-report.html) — the init run's timeline, and [below](#how-this-repository-was-built) |
+| How was this repository actually built? | [The init run's timeline](https://konradcinkusz.github.io/architecture-standards-init-example/), its [source](docs/session-report.html), and [below](#how-this-repository-was-built) |
 
 ## What it deliberately does not have
 
@@ -128,8 +127,19 @@ the same session, which is why the figures below are scoped to that one turn rat
 than to the repository's whole history.
 
 The timeline is a self-contained HTML page carrying every prompt, tool call and
-phase with hover detail. Clone and open it in a browser — GitHub shows HTML as
-source rather than rendering it.
+phase with hover detail. GitHub shows HTML as source rather than rendering it, so
+[`pages.yml`](.github/workflows/pages.yml) publishes it to GitHub Pages on every
+push to `main`:
+
+**<https://konradcinkusz.github.io/architecture-standards-init-example/>**
+
+That workflow does more than copy a file. The committed report is generator
+output, kept byte-for-byte as produced, which means it carries no `<!doctype>`,
+no charset and no viewport — the tool that normally renders it supplies those.
+Served raw it falls into quirks mode and guesses `windows-1252`, mojibaking every
+em dash; the workflow wraps it in a real HTML document and asserts the wrapper
+took before deploying. Wrapping happens in the pipeline rather than in the file,
+so regenerating the report never has to fight a hand edit.
 
 **The init run** — exact, measured over that one turn:
 
