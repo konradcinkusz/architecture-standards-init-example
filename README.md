@@ -108,6 +108,7 @@ and is written down in [`flyio/SECRETS.md`](flyio/SECRETS.md).
 | Where does a secret live? | [`flyio/SECRETS.md`](flyio/SECRETS.md) |
 | What runs where, and what does it cost? | [`flyio/INFRASTRUCTURE-ANALYSIS.md`](flyio/INFRASTRUCTURE-ANALYSIS.md) |
 | How should an agent work in here? | [`AGENTS.md`](AGENTS.md) |
+| How was this repository actually built? | [`docs/session-report.html`](docs/session-report.html) — the init run's timeline, and [below](#how-this-repository-was-built) |
 
 ## What it deliberately does not have
 
@@ -116,6 +117,64 @@ abstraction over the platform, no user store or token minting anywhere, and no
 sample domain model. Each is a design decision with a reason when the time comes,
 not a scaffolding default. The reasoning is in
 [`docs/architecture/00-ARCHITECTURE.md` §4](docs/architecture/00-ARCHITECTURE.md).
+
+## How this repository was built
+
+This repo is a *worked run*, so the run itself is part of what it documents. The
+application — solution, frontend, containers, Fly topology, workflows, docs — came
+out of a single `/init-generic-template` invocation. This section and
+[the full timeline](docs/session-report.html) were added immediately afterwards, in
+the same session, which is why the figures below are scoped to that one turn rather
+than to the repository's whole history.
+
+The timeline is a self-contained HTML page carrying every prompt, tool call and
+phase with hover detail. Clone and open it in a browser — GitHub shows HTML as
+source rather than rendering it.
+
+**The init run** — exact, measured over that one turn:
+
+| | |
+|---|---|
+| Wall clock | 77 minutes, from one 211-character prompt |
+| Tool calls | 281 |
+| Commits | 9, in an ordered series |
+| Files | 123 |
+| Largest single read | 25,392 characters — the Fly.io deployment guide |
+| Longest run without narrating | 24 consecutive tool calls |
+
+Session-wide token figures, which also cover generating the report itself:
+**~107.6M tokens billed, 99.5% of input served from cache** (106.8M cache reads
+against 520K cache writes), and **39.6 minutes reasoning against 24.4 minutes
+executing tools**. The cache ratio is the number that makes the shape work: the
+constitution and its guides were read once, early, and every later decision
+reused them at cache-read prices.
+
+### The gates earned their place
+
+Building took roughly the first 52 minutes. **Verification took another 21 and
+found five defects — every one of them invisible to reading the code.** They are
+listed here because the same five are the ones a next run is most likely to
+repeat:
+
+| Found by | Defect | Why reading missed it |
+|---|---|---|
+| P8's zero-credential run | The AppHost had no `launchSettings.json`, so `dotnet run` started it in Production — where user secrets are not loaded. Every parameter marked `secret: true` resolved to `ValueMissing` and every resource waiting on one sat in `Waiting` forever | The host reported nothing worse than a dashboard URL. The first fix attempt reproduced the identical symptom for a different reason: a `"//"` comment array inside `environmentVariables` is not a string, which makes the whole profile unreadable and `dotnet run` continue with *no* profile |
+| P8's zero-credential run | `AddNextJsApp` chose its own package manager and ran `npm install` inside a pnpm workspace, creating the mixed tree FRONTEND-BFF §7 names as an anti-pattern | Nothing in the source says which package manager the integration will pick |
+| P8's zero-credential run | The frontend's dev script used `--port ${PORT:-3000}` — POSIX expansion, passed through literally by pnpm on Windows and rejected by Next as a port | Correct-looking on any Unix machine |
+| The secret-scan gate | The `.gitleaks.toml` rule used a negative lookahead. Go's RE2 has none, so the scanner **panicked** rather than failing a file | A dead CI job looks like a broken runner, not like an unscanned repository. The allowlist also needed `regexTarget = "line"`, or a `${VAR}` reference reads as a leaked password |
+| The container-image gate | `.editorconfig` sat outside the Docker build context, so the image compiled under different analyzer severities than a developer's machine | The classic "works locally, breaks in CI" — it arrived before the first CI run only because the gate was run |
+
+Each is now a row in [`scripts/README.md`](scripts/README.md)'s troubleshooting
+table, keyed on the literal error text.
+
+> The HTML report is generated, and this repository otherwise commits nothing
+> generated — `.gitignore` covers the PDF and the rendered diagrams. The
+> difference is that those have a **live source in the tree** and would disagree
+> with it on the next edit; this one's source is an immutable session transcript
+> that no longer changes. It is a record of a past event, closer to a changelog
+> entry than to a rendered diagram. Its counters are a snapshot taken while the
+> session was still running, so they read slightly high against the init run's
+> own figures above.
 
 ## License
 
