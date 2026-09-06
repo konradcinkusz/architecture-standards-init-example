@@ -51,16 +51,11 @@ $node = Get-Command node -ErrorAction SilentlyContinue
 if ($node) {
     $nodeVersion = (& node --version)
     $parsed = [version]($nodeVersion -replace '^v', '')
-    if ($parsed -ge [version]'20.19.0') {
+    # 20.9 is the real floor: it is what Next.js 16 and ESLint 9 both declare.
+    if ($parsed -ge [version]'20.9.0') {
         Write-Ok "Node $nodeVersion"
-    } elseif ($parsed.Major -eq 20) {
-        # A warning, not a failure: the app builds and runs on 20.9+, and only
-        # the lint toolchain declares a higher floor.
-        Write-Skip "Node $nodeVersion — the app builds and runs, but eslint 10 declares"
-        Write-Note "       ^20.19.0, so 'pnpm lint' warns about an unsupported engine."
-        Write-Note "       Upgrade to 20.19+ or 22 to silence it. https://nodejs.org"
     } else {
-        Write-Fail "Node $nodeVersion found; this project needs 20.19 or newer — https://nodejs.org"
+        Write-Fail "Node $nodeVersion found; this project needs 20.9 or newer — https://nodejs.org"
     }
 } else {
     Write-Fail "Node 20.19+ not found — https://nodejs.org"

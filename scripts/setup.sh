@@ -43,20 +43,14 @@ if command -v node >/dev/null 2>&1; then
   node_version="$(node --version)"
   node_major="$(echo "$node_version" | sed 's/^v\([0-9]*\).*/\1/')"
   node_minor="$(echo "$node_version" | sed 's/^v[0-9]*\.\([0-9]*\).*/\1/')"
-  if [[ "$node_major" -gt 20 ]] || { [[ "$node_major" -eq 20 ]] && [[ "$node_minor" -ge 19 ]]; }; then
+  # 20.9 is the real floor: it is what Next.js 16 and ESLint 9 both declare.
+  if [[ "$node_major" -gt 20 ]] || { [[ "$node_major" -eq 20 ]] && [[ "$node_minor" -ge 9 ]]; }; then
     ok "Node $node_version"
-  elif [[ "$node_major" -eq 20 ]]; then
-    # A warning, not a failure, because that is what it actually is: the app
-    # builds and runs on 20.9+, and only the lint toolchain declares a higher
-    # floor. Failing here would block onboarding over a warning.
-    warn "Node $node_version — the app builds and runs, but eslint 10 declares
-         ^20.19.0, so 'pnpm lint' warns about an unsupported engine. Upgrade to
-         20.19+ or 22 to silence it. https://nodejs.org"
   else
-    fail "Node $node_version found; this project needs 20.19 or newer — https://nodejs.org"
+    fail "Node $node_version found; this project needs 20.9 or newer — https://nodejs.org"
   fi
 else
-  fail "Node 20.19+ not found — https://nodejs.org"
+  fail "Node 20.9+ not found — https://nodejs.org"
 fi
 
 if command -v pnpm >/dev/null 2>&1; then ok "pnpm $(pnpm --version)"
