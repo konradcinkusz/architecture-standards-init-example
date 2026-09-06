@@ -57,7 +57,7 @@ it; the startup banner prints the same list from the same source.
 | Project | What it owns | Deps |
 |---|---|---|
 | [`src/…AppHost`](src/ArchitectureStandardsInitExample.AppHost/) | The development composition root. Declares Postgres, the API and the frontend with `WithReference`, `WaitFor` and `WithHttpHealthCheck`. **Not** the production topology | 3 |
-| [`src/…ServiceDefaults`](src/ArchitectureStandardsInitExample.ServiceDefaults/) | The shared kernel: telemetry, health, discovery, resilience, JWT, CORS, OpenAPI, database provider. 442 lines, and the ceiling is enforced by a test and a CI step rather than by prose | 12 |
+| [`src/…ServiceDefaults`](src/ArchitectureStandardsInitExample.ServiceDefaults/) | The shared kernel: telemetry, health, discovery, resilience, JWT, CORS, OpenAPI, database provider. 477 lines, and the ceiling is enforced by a test and a CI step rather than by prose | 12 |
 | [`src/…Contracts`](src/ArchitectureStandardsInitExample.Contracts/) | The DTOs that cross a boundary. References nothing | 0 |
 | [`src/…Api`](src/ArchitectureStandardsInitExample.Api/) | The one service. Owns `apidb`; exposes `/health`, `/alive` and `/api/boots` | 1 |
 | [`web/app`](web/app/) | The product surface. The browser's only origin | 3 + 7 dev |

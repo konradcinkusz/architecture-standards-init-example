@@ -16,7 +16,7 @@ One bounded context, one service, one database, one product surface.
 | Piece | Project | Owns |
 |---|---|---|
 | Composition root (P1) | [`src/…AppHost`](../../src/ArchitectureStandardsInitExample.AppHost/) | the development topology; **not** the production one |
-| Shared kernel (P2) | [`src/…ServiceDefaults`](../../src/ArchitectureStandardsInitExample.ServiceDefaults/) | P2's eight plumbing concerns, 442 lines |
+| Shared kernel (P2) | [`src/…ServiceDefaults`](../../src/ArchitectureStandardsInitExample.ServiceDefaults/) | P2's eight plumbing concerns, 477 lines |
 | Contracts | [`src/…Contracts`](../../src/ArchitectureStandardsInitExample.Contracts/) | DTOs that cross a boundary |
 | The service (P3) | [`src/…Api`](../../src/ArchitectureStandardsInitExample.Api/) | `apidb`, `/health`, `/alive`, `/api/boots` |
 | Product surface | [`web/app`](../../web/app/) | the browser's only origin |
