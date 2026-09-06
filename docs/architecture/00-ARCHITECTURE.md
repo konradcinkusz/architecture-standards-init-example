@@ -68,7 +68,7 @@ an assurance.
 | Multi-stage Dockerfile; runtime major = TFM major; `:8080`; non-root | yes | both Dockerfiles; verified by running each image |
 | One `fly.toml`; `min_machines_running = 1` if called in-request | yes | `api` pins 1, and the call is named in the file |
 | Outbound clients carry resilience and explicit timeouts | yes | `ConfigureHttpClientDefaults`; the BFF proxy's 30 s abort |
-| `Program.cs` is a manifest; wiring in `ServiceCollectionExtensions` | yes | 30 lines, every block one call |
+| `Program.cs` is a manifest; wiring in `ServiceCollectionExtensions` | yes | 37 lines, every block one call |
 | Extension points are interfaces in DI, not base classes | yes | `KernelBoundaryTests` asserts nothing inheritable is exported |
 | Has a test project covering the logic-bearing layer | yes | 10 unit/integration tests, 4 E2E |
 | Built by the tag-driven workflow with change detection | yes | [`flyio.yml`](../../.github/workflows/flyio.yml) |
