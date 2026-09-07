@@ -2,11 +2,20 @@ name: GitHub Pages
 
 # Publishes the init run's session report as a rendered page.
 #
-# Why this workflow exists at all, rather than a setting somebody clicked:
-# Pages configured by hand is configuration that lives nowhere in git — the same
-# objection FLY-IO §11 makes to `fly launch`. `configure-pages` with
-# `enablement: true` turns the feature on from here, so the whole arrangement is
-# reviewable in a diff.
+# Enabling Pages is a one-time manual step, and this file cannot do it. An admin
+# turns the feature on once, under Settings → Pages, with the source set to
+# GitHub Actions; everything after that — what gets built, how it is wrapped,
+# what has to be true before it ships — lives here and is reviewable in a diff.
+#
+# That split is not the one this comment originally claimed. `configure-pages`
+# takes `enablement: true`, which reads like the setting is provisioned from
+# here, but creating a Pages site is an administration-scoped REST call and
+# GITHUB_TOKEN cannot reach it: there is no `administration` key to add to the
+# `permissions` block below, and the POST comes back 403 `Resource not
+# accessible by integration`. The first run of this workflow failed exactly
+# there, before any build step, and only went green once Pages had been switched
+# on by hand. So the flag stays (see its own note below) but it earns no credit:
+# the browser click it was supposed to replace is still required.
 #
 # Why there is a build step for one static file: docs/session-report.html is
 # generator output and is committed byte-for-byte as produced, which means it
@@ -47,8 +56,12 @@ jobs:
 
       - uses: actions/configure-pages@v5
         with:
-          # Turns Pages on if it is off. Keeps the setting in this file rather
-          # than in somebody's browser history.
+          # A no-op in the only case it can run: with Pages already enabled the
+          # action's GET succeeds and never reaches the create call it has no
+          # permission to make. Kept because it costs nothing and documents the
+          # dependency at the point of use — not because it provisions anything.
+          # If this step ever fails with 403 on `create-a-apiname-pages-site`,
+          # Pages has been turned off and needs an admin, not a diff.
           enablement: true
 
       - name: Wrap the report in a real HTML document
