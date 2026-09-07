@@ -196,7 +196,7 @@ jobs:
       # Built but not pushed: a pull request proves the images build, and only a
       # tag publishes one (P12 — a deploy is an act, and the tag is its record).
       - name: API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: src/ArchitectureStandardsInitExample.Api/Dockerfile
@@ -205,7 +205,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Web image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: web
           file: web/app/Dockerfile

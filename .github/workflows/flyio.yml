@@ -164,7 +164,7 @@ jobs:
 
       # Build once. Every deploy step below references the result by tag; nothing
       # downstream builds, and nothing builds the same source twice.
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: ${{ steps.ctx.outputs.context }}
           file: ${{ steps.ctx.outputs.file }}
