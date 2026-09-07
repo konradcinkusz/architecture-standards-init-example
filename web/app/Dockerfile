@@ -7,7 +7,7 @@
 # locally and break in CI (FLY-IO §4).
 
 # ---- deps -------------------------------------------------------------------
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 RUN corepack enable
 WORKDIR /workspace
 
@@ -18,7 +18,7 @@ COPY app/package.json app/
 RUN pnpm install --frozen-lockfile
 
 # ---- builder ----------------------------------------------------------------
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 RUN corepack enable
 WORKDIR /workspace
 
@@ -34,7 +34,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter web build
 
 # ---- runner -----------------------------------------------------------------
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 WORKDIR /app
 
 LABEL org.opencontainers.image.source="https://github.com/konradcinkusz/architecture-standards-init-example"
